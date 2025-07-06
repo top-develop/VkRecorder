@@ -1,27 +1,49 @@
-﻿
-using System;
+﻿using System;
 using System.IO;
 using System.Threading;
 using Serilog;
 
 namespace VkAudioRecorderCLI
 {
+    /// <summary>
+    /// Einstiegspunkt der Anwendung. Steuert die Hauptlogik für das Aufzeichnen, Segmentieren und Exportieren von Audio-Tracks.
+    /// </summary>
     internal class Program
     {
+        /// <summary>
+        /// Hauptmethode. Initialisiert Logging, startet die Metadaten-Erfassung und steuert die Track-Aufzeichnung.
+        /// </summary>
         static void Main(string[] args)
         {
+            // Setzt die Konsolenausgabe auf UTF-8 für korrekte Zeichendarstellung
             Console.OutputEncoding = System.Text.Encoding.UTF8;
 
+            // Lese Log- und Track-Verzeichnis aus der Konfiguration
+            var logPath = Environment.ExpandEnvironmentVariables(ConfigHelper.Get("Paths:LogFilePath"));
+            var outputDir = Environment.ExpandEnvironmentVariables(ConfigHelper.Get("Paths:TracksDirectory"));
+            Directory.CreateDirectory(logPath);
+
+            // Pfad zur Logdatei
+            var logFile = Path.Combine(logPath, "log.txt");
+
+            // Serilog-Konfiguration: Konsole und Datei, täglicher Wechsel, max. 30 Dateien
             Log.Logger = new LoggerConfiguration()
                 .WriteTo.Console()
-                .WriteTo.File(@"Logs\log.txt", encoding: System.Text.Encoding.UTF8, rollingInterval: RollingInterval.Day)
+                .WriteTo.File(
+                    logFile,
+                    rollingInterval: RollingInterval.Day,
+                    retainedFileCountLimit: 30
+                )
                 .CreateLogger();
 
             Log.Information("Anwendung gestartet.");
+            // Startet den Metadaten-Fetcher (z.B. öffnet einen Browser)
             VkMetadataFetcher.StartBrowser();
 
+            // Initialisiert den RingBufferRecorder für die Audioaufnahme
             using var ringBufferRecorder = new RingBufferRecorder();
 
+            // Variablen für Track- und Statusverwaltung
             string lastTrackTime = "";
             string artist = "Artist";
             string title = "Title";
@@ -34,13 +56,16 @@ namespace VkAudioRecorderCLI
             bool trackJustStarted = false;
             DateTime trackStartTime = DateTime.UtcNow;
 
+            // Hauptloop: prüft und verarbeitet Metadaten alle 100 ms
             while (true)
             {
+                // Metadaten abfragen
                 string trackTime = VkMetadataFetcher.GetTrackTime();
                 artist = VkMetadataFetcher.GetArtist();
                 title = VkMetadataFetcher.GetTitle();
                 currentTrackDuration += 100;
 
+                // Loggt Metadaten einmal pro Sekunde
                 if (millisecondsSinceStart % 1000 == 0)
                 {
                     Log.Information("Metadaten prüfen... Zeit: {TrackTime}, Artist: {Artist}, Titel: {Title}", trackTime, artist, title);
@@ -48,6 +73,11 @@ namespace VkAudioRecorderCLI
 
                 if (!waitingForTrackStart)
                 {
+                    // Vor dem Vergleich: alten Zustand merken
+                    string prevArtist = lastArtist;
+                    string prevTitle = lastTitle;
+
+                    // Trackwechsel erkennen und ggf. Segment exportieren
                     if (artist != lastArtist || title != lastTitle)
                     {
                         millisecondsSinceStart = 0;
@@ -56,38 +86,47 @@ namespace VkAudioRecorderCLI
                         var duration = (DateTime.UtcNow - trackStartTime).TotalMilliseconds;
                         Log.Information("Trackdauer (ms): {Duration}", duration);
 
-                        string safeArtist = MakeFilenameSafe(lastArtist);
-                        string safeTitle = MakeFilenameSafe(lastTitle);
-                        string filename = $"{safeArtist}_{safeTitle}.wav";
-                        string mp3Path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Tracks", Path.ChangeExtension(filename, ".mp3"));
+                        string safeArtist = MakeFilenameSafe(prevArtist);
+                        string safeTitle = MakeFilenameSafe(prevTitle);
+                        string filename = $"{safeArtist} - {safeTitle}.mp3";
+                        string mp3Path = Path.Combine(outputDir, filename);
 
-                        if (File.Exists(mp3Path))
+                        // Prüft, ob MP3 bereits existiert
+                        if (!string.IsNullOrEmpty(safeArtist) || !string.IsNullOrEmpty(safeTitle))
                         {
-                            Log.Information("MP3 existiert bereits: {Mp3File}. Export wird komplett übersprungen.", mp3Path);
-                        }
-                        else if (duration >= 15000)
-                        {
-                            ringBufferRecorder.ExportMarkedSegment(filename);
-                            Log.Information("⏹️ Aufnahme gestoppt, WAV-Datei gespeichert: {Filename}", filename);
-                            Log.Information("Trackwechsel erkannt: {LastArtist} - {LastTitle} gespeichert als {Filename}", lastArtist, lastTitle, filename);
-                            File.AppendAllText("recorded.txt", $"{lastArtist} - {lastTitle}\n");
-                        }
-                        else
-                        {
-                            Log.Information("Trackwechsel erkannt: {LastArtist} - {LastTitle} war zu kurz, wird nicht gespeichert.", lastArtist, lastTitle);
+                            if (File.Exists(mp3Path))
+                            {
+                                Log.Information("MP3 existiert bereits: {Mp3File}. Export wird komplett übersprungen.", mp3Path);
+                            }
+                            // Exportiert nur, wenn Track lang genug
+                            else if (duration >= 15000)
+                            {
+                                ringBufferRecorder.ExportMarkedSegment(filename);
+                                Log.Information("Trackwechsel erkannt: {LastArtist} - {LastTitle} gespeichert als {mp3Path}", prevArtist, prevTitle, mp3Path);
+                            }
+                            else
+                            {
+                                Log.Information("Trackwechsel erkannt: {LastArtist} - {LastTitle} war zu kurz, wird nicht gespeichert.", prevArtist, prevTitle);
+                            }
                         }
 
                         currentTrackDuration = 0;
                         trackStartTime = DateTime.UtcNow;
                     }
 
+                    // Nach dem Vergleich: aktuellen Zustand übernehmen
+                    lastArtist = artist;
+                    lastTitle = title;
+
+                    // Trackstart erkennen (einmalig, wenn Zeit auf 0 springt)
                     if (trackTime == "0:00" && lastTrackTime != "0:00")
                     {
                         string safeArtist = MakeFilenameSafe(artist);
                         string safeTitle = MakeFilenameSafe(title);
-                        string filename = $"{safeArtist}_{safeTitle}.wav";
-                        string mp3Path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Tracks", Path.ChangeExtension(filename, ".mp3"));
+                        string filename = $"{safeArtist} - {safeTitle}.mp3";
+                        string mp3Path = Path.Combine(outputDir, filename);
 
+                        // Prüft, ob MP3 bereits existiert und überspringt ggf. die Aufnahme
                         if (File.Exists(mp3Path))
                         {
                             Log.Information("Trackstart erkannt, aber MP3 existiert bereits: {Mp3File}. Aufnahme wird übersprungen.", mp3Path);
@@ -104,7 +143,6 @@ namespace VkAudioRecorderCLI
                         ringBufferRecorder.SetMetadata(title, artist);
                         ringBufferRecorder.MarkSegmentStart();
                         Log.Information("🎙️ Aufnahme gestartet (in Memory) für: {Artist} - {Title}", artist, title);
-
                     }
                     else
                     {
@@ -112,6 +150,7 @@ namespace VkAudioRecorderCLI
                         if (trackJustStarted) trackJustStarted = false;
                     }
 
+                    // Trackende erkennen (Zeit bleibt stehen)
                     if (trackTime == lastTrackTime)
                     {
                         unchangedTimeCount++;
@@ -125,19 +164,19 @@ namespace VkAudioRecorderCLI
 
                             string safeArtist = MakeFilenameSafe(artist);
                             string safeTitle = MakeFilenameSafe(title);
-                            string filename = $"{safeArtist}_{safeTitle}.wav";
-                            string mp3Path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Tracks", Path.ChangeExtension(filename, ".mp3"));
+                            string filename = $"{safeArtist} - {safeTitle}.mp3";
+                            string mp3Path = Path.Combine(outputDir, filename);
 
+                            // Prüft, ob MP3 bereits existiert
                             if (File.Exists(mp3Path))
                             {
                                 Log.Information("MP3 existiert bereits: {Mp3File}. Export wird komplett übersprungen.", mp3Path);
                             }
+                            // Exportiert nur, wenn Track lang genug
                             else if (duration >= 15000)
                             {
                                 ringBufferRecorder.ExportMarkedSegment(filename);
-                                Log.Information("⏹️ Aufnahme gestoppt, WAV-Datei gespeichert: {Filename}", filename);
-                                Log.Information("Track war lang genug, Segment exportiert: {Filename}", filename);
-                                File.AppendAllText("recorded.txt", $"{artist} - {title}\n");
+                                Log.Information("⏹️ Aufnahme gestoppt und MP3-Datei gespeichert: {Filename}", filename);
                             }
                             else
                             {
@@ -152,6 +191,7 @@ namespace VkAudioRecorderCLI
                 }
                 else
                 {
+                    // Warten auf nächsten Trackstart (wenn Track zu Ende ist)
                     if (trackTime == "0:00" && lastTrackTime != "0:00")
                     {
                         waitingForTrackStart = false;
@@ -159,23 +199,25 @@ namespace VkAudioRecorderCLI
                         millisecondsSinceStart = 0;
                         currentTrackDuration = 0;
                         trackStartTime = DateTime.UtcNow;
-                        Log.Information("Trackstart erkannt, Segmentmarkierung wurde bereits gesetzt.");
+                        //Log.Information("Trackstart erkannt, Segmentmarkierung wurde bereits gesetzt.");
 
                         Log.Information("Trackstart: Artist = {Artist}, Title = {Title}", artist, title);
                         ringBufferRecorder.SetMetadata(title, artist);
                         ringBufferRecorder.MarkSegmentStart();
                         Log.Information("🎙️ Aufnahme gestartet (in Memory) für: {Artist} - {Title}", artist, title);
-
                     }
                 }
 
+                // Trackzeit für nächste Iteration merken
                 lastTrackTime = trackTime;
-                lastArtist = artist;
-                lastTitle = title;
                 Thread.Sleep(100);
             }
+
         }
 
+        /// <summary>
+        /// Ersetzt alle ungültigen Zeichen in Dateinamen durch Unterstriche.
+        /// </summary>
         private static string MakeFilenameSafe(string input)
         {
             foreach (char c in Path.GetInvalidFileNameChars())
@@ -186,3 +228,4 @@ namespace VkAudioRecorderCLI
         }
     }
 }
+

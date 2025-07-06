@@ -7,11 +7,26 @@ using System.Linq;
 
 namespace VkAudioRecorderCLI
 {
+    /// <summary>
+    /// Stellt Methoden bereit, um Metadaten (Titel, Künstler, Trackzeit) von VK Music über einen Chrome-Browser mit Selenium auszulesen.
+    /// Verwaltet die Lebensdauer des ChromeDriver und das User-Profil für persistente Logins.
+    /// </summary>
     internal class VkMetadataFetcher
     {
+        /// <summary>
+        /// Singleton-Instanz des ChromeDriver für die Browserautomatisierung.
+        /// </summary>
         private static ChromeDriver? _driver;
+
+        /// <summary>
+        /// Synchronisationsobjekt für Thread-Sicherheit.
+        /// </summary>
         private static readonly object _lock = new();
 
+        /// <summary>
+        /// Startet den Chrome-Browser mit einem persistenten User-Profil.
+        /// Initialisiert den ChromeDriver nur einmal pro Anwendungslauf.
+        /// </summary>
         public static void StartBrowser()
         {
             lock (_lock)
@@ -48,24 +63,42 @@ namespace VkAudioRecorderCLI
             }
         }
 
+        /// <summary>
+        /// Liest die aktuelle Trackzeit (z.B. "0:42") aus dem VK-Player aus.
+        /// </summary>
+        /// <returns>Trackzeit als String oder "unknown" bei Fehler.</returns>
         public static string GetTrackTime()
         {
             // Aktualisierter VK-Selektor für aktuelle Trackzeit
             return GetElementText("span.vkitAudioPlayerPlaybackProgressTime__text--ftMtw");
         }
 
+        /// <summary>
+        /// Liest den aktuellen Künstlernamen aus dem VK-Player aus.
+        /// </summary>
+        /// <returns>Künstlername als String oder "unknown" bei Fehler.</returns>
         public static string GetArtist()
         {
             // Neuer VK-Selektor für Künstler
             return GetElementText("span.vkitgetColorClass__colorTextSecondary--AhvRj");
         }
 
+        /// <summary>
+        /// Liest den aktuellen Songtitel aus dem VK-Player aus.
+        /// </summary>
+        /// <returns>Songtitel als String oder "unknown" bei Fehler.</returns>
         public static string GetTitle()
         {
             // Neuer VK-Selektor für Titel
             return GetElementText("span.vkitgetColorClass__colorTextPrimary--AX4Wt");
         }
 
+        /// <summary>
+        /// Hilfsmethode, um den Text eines Elements anhand eines CSS-Selektors auszulesen.
+        /// Gibt "unknown" zurück, falls das Element nicht gefunden wird oder ein Fehler auftritt.
+        /// </summary>
+        /// <param name="cssSelector">CSS-Selektor für das gewünschte Element.</param>
+        /// <returns>Textinhalt des Elements oder "unknown".</returns>
         private static string GetElementText(string cssSelector)
         {
             lock (_lock)
@@ -99,3 +132,4 @@ namespace VkAudioRecorderCLI
         }
     }
 }
+
