@@ -79,7 +79,7 @@ Use environment variables like `%USERPROFILE%` for flexible storage locations.
 Recorded MP3 files are saved in the configured directory, for example:
 
 ```
-C:\Users\<Name>\Documents\VkTracks\Geo Da Silva - Casablanca.mp3
+C:\Users\<Name>\Documents\VkTracks\Titel - Artist.mp3
 ```
 
 ---
