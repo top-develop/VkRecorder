@@ -399,3 +399,15 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+
+# === Custom additions ===
+
+# Audio output
+Tracks/
+!Tracks/.gitkeep
+
+# Log dateien
+log.txt
+
+# Chrome User Data
+chrome-profile/
