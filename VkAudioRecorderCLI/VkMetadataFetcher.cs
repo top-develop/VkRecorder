@@ -89,6 +89,7 @@ namespace VkAudioRecorderCLI
             }
         }
 
+        /// Klickt auf den Play-Button im VK-Player, um die Wiedergabe zu starten.
         public static void TryClickPlayButton()
         {
             if (_driver == null)
@@ -185,6 +186,7 @@ namespace VkAudioRecorderCLI
             }
         }
 
+        // Schließt den Chrome-Browser und gibt den ChromeDriver frei.
         public static void CloseBrowser()
         {
             lock (_lock)

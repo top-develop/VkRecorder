@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Threading;
+using NAudio.CoreAudioApi;
 using Serilog;
 
 namespace VkAudioRecorderCLI
@@ -40,6 +41,13 @@ namespace VkAudioRecorderCLI
             Log.Information("Anwendung gestartet.");
             // Startet den Metadaten-Fetcher (z.B. öffnet einen Browser)
             VkMetadataFetcher.StartBrowser();
+
+
+            // Aufnahmegerät ermitteln
+            Log.Information("Standard-Audioausgabegerät wird ermittelt...");
+            var defaultDevice = new MMDeviceEnumerator().GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+            Log.Information("Standardgerät: {0}", defaultDevice.FriendlyName);
+
 
             // warten 5 Sekunden, um sicherzustellen, dass die Seite geladen ist
             Log.Information("Warte 5 Sekunden auf das Laden der VK Music Seite...");
