@@ -411,3 +411,7 @@ log.txt
 
 # Chrome User Data
 chrome-profile/
+
+# My private Data
+MyConfiguration.json
+

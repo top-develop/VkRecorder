@@ -64,6 +64,60 @@ namespace VkAudioRecorderCLI
         }
 
         /// <summary>
+        /// Navigiert den Browser zur angegebenen URL.
+        /// </summary>
+        /// <param name="url">Die Ziel-URL, zu der navigiert werden soll.</param>
+        public static void NavigateToMusicPage(string url)
+        {
+            lock (_lock)
+            {
+                if (_driver == null)
+                {
+                    Log.Warning("ChromeDriver ist nicht initialisiert.");
+                    return;
+                }
+
+                try
+                {
+                    _driver.Navigate().GoToUrl(url);
+                    Log.Information("Navigiere zu URL: {Url}", url);
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Fehler beim Navigieren zu {Url}", url);
+                }
+            }
+        }
+
+        public static void TryClickPlayButton()
+        {
+            if (_driver == null)
+            {
+                Log.Warning("ChromeDriver ist nicht initialisiert.");
+                return;
+            }
+
+            try
+            {
+                Thread.Sleep(3000); // kurz warten, damit Seite geladen ist
+
+                var playButton = _driver.FindElement(By.CssSelector("button[data-testid='audio-player-controls-state-button']"));
+                playButton.Click();
+
+                Log.Information("▶️ Wiedergabe gestartet (Play-Button wurde geklickt).");
+            }
+            catch (NoSuchElementException)
+            {
+                Log.Warning("⚠️ Wiedergabe-Button wurde nicht gefunden.");
+            }
+            catch (Exception ex)
+            {
+                Log.Error("❌ Fehler beim Klicken auf den Wiedergabe-Button: {Message}", ex.Message);
+            }
+        }
+
+
+        /// <summary>
         /// Liest die aktuelle Trackzeit (z.B. "0:42") aus dem VK-Player aus.
         /// </summary>
         /// <returns>Trackzeit als String oder "unknown" bei Fehler.</returns>
@@ -130,6 +184,24 @@ namespace VkAudioRecorderCLI
                 }
             }
         }
+
+        public static void CloseBrowser()
+        {
+            lock (_lock)
+            {
+                try
+                {
+                    _driver?.Quit();
+                    _driver = null;
+                    Log.Information("ChromeDriver wurde beendet und freigegeben.");
+                }
+                catch (Exception ex)
+                {
+                    Log.Error("Fehler beim Schließen des Browsers: {Message}", ex.Message);
+                }
+            }
+        }
+
     }
 }
 

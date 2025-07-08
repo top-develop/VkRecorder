@@ -21,6 +21,7 @@ namespace VkAudioRecorderCLI
             // Lese Log- und Track-Verzeichnis aus der Konfiguration
             var logPath = Environment.ExpandEnvironmentVariables(ConfigHelper.Get("Paths:LogFilePath"));
             var outputDir = Environment.ExpandEnvironmentVariables(ConfigHelper.Get("Paths:TracksDirectory"));
+            var vkMusicSiteUrl = Environment.ExpandEnvironmentVariables(ConfigHelper.Get("MusicPageUrl"));
             Directory.CreateDirectory(logPath);
 
             // Pfad zur Logdatei
@@ -39,6 +40,22 @@ namespace VkAudioRecorderCLI
             Log.Information("Anwendung gestartet.");
             // Startet den Metadaten-Fetcher (z.B. öffnet einen Browser)
             VkMetadataFetcher.StartBrowser();
+
+            // warten 5 Sekunden, um sicherzustellen, dass die Seite geladen ist
+            Log.Information("Warte 5 Sekunden auf das Laden der VK Music Seite...");
+            Thread.Sleep(5000);
+
+            // Navigiert zur VK Music Seite
+            Log.Information("Navigiere zur VK Music Seite: {VkMusicSiteUrl}", vkMusicSiteUrl);
+            VkMetadataFetcher.NavigateToMusicPage(vkMusicSiteUrl);
+
+            //warten 10 Sekunden, um sicherzustellen, dass die Seite vollständig geladen ist
+            Log.Information("Warte 15 Sekunden, um sicherzustellen, dass die Seite vollständig geladen ist...");
+            Thread.Sleep(10000);
+
+            // Play-Button klicken, um die Wiedergabe zu starten
+            Log.Information("Klicke auf den Play-Button, um die Wiedergabe zu starten.");
+            VkMetadataFetcher.TryClickPlayButton();
 
             // Initialisiert den RingBufferRecorder für die Audioaufnahme
             using var ringBufferRecorder = new RingBufferRecorder();
@@ -154,7 +171,7 @@ namespace VkAudioRecorderCLI
                     if (trackTime == lastTrackTime)
                     {
                         unchangedTimeCount++;
-                        if (unchangedTimeCount >= 30)
+                        if (unchangedTimeCount >= 300)
                         {
                             Log.Information("Track zu Ende");
                             waitingForTrackStart = true;
@@ -182,12 +199,21 @@ namespace VkAudioRecorderCLI
                             {
                                 Log.Information("Track war zu kurz, wird nicht gespeichert.");
                             }
+
+                            // wenn seit 30 Sekunden kein aktiver Track erkannt wurde, Browser schließen
+                            Log.Information("🔚 Seit 30 Sekunden kein aktiver Track erkannt. Browser wird geschlossen...");
+                            VkMetadataFetcher.CloseBrowser();
+                            break;
+
                         }
                     }
                     else
                     {
                         unchangedTimeCount = 0;
                     }
+
+
+
                 }
                 else
                 {
@@ -201,7 +227,7 @@ namespace VkAudioRecorderCLI
                         trackStartTime = DateTime.UtcNow;
                         //Log.Information("Trackstart erkannt, Segmentmarkierung wurde bereits gesetzt.");
 
-                        Log.Information("Trackstart: Artist = {Artist}, Title = {Title}", artist, title);
+                        //Log.Information("Trackstart: Artist = {Artist}, Title = {Title}", artist, title);
                         ringBufferRecorder.SetMetadata(title, artist);
                         ringBufferRecorder.MarkSegmentStart();
                         Log.Information("🎙️ Aufnahme gestartet (in Memory) für: {Artist} - {Title}", artist, title);

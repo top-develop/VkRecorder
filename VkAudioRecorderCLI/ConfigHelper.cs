@@ -22,6 +22,7 @@ namespace VkAudioRecorderCLI
             _config = new ConfigurationBuilder()
                 .SetBasePath(AppContext.BaseDirectory)
                 .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+                .AddJsonFile("MyConfiguration.json", optional: true, reloadOnChange: true)
                 .Build();
         }
 

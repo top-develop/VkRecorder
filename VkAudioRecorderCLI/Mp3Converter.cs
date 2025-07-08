@@ -18,7 +18,7 @@ public static class Mp3Converter
     {
         // Liest die WAV-Datei und schreibt sie als MP3
         using var reader = new AudioFileReader(wavPath);
-        using var writer = new LameMP3FileWriter(mp3Path, reader.WaveFormat, LAMEPreset.VBR_90);
+        using var writer = new LameMP3FileWriter(mp3Path, reader.WaveFormat, 320);
         reader.CopyTo(writer);
     }
 
@@ -32,7 +32,7 @@ public static class Mp3Converter
         // Setzt die Position des Streams auf den Anfang
         wavStream.Position = 0;
         using var waveReader = new WaveFileReader(wavStream);
-        using var mp3Writer = new LameMP3FileWriter(mp3Path, waveReader.WaveFormat, LAMEPreset.VBR_90);
+        using var mp3Writer = new LameMP3FileWriter(mp3Path, waveReader.WaveFormat, 320);
         waveReader.CopyTo(mp3Writer);
     }
 }
