@@ -23,10 +23,6 @@ namespace VkAudioRecorderCLI
         /// </summary>
         private static readonly object _lock = new();
 
-        /// <summary>
-        /// Startet den Chrome-Browser mit einem persistenten User-Profil.
-        /// Initialisiert den ChromeDriver nur einmal pro Anwendungslauf.
-        /// </summary>
         public static void StartBrowser()
         {
             lock (_lock)
@@ -53,8 +49,30 @@ namespace VkAudioRecorderCLI
                     options.AddArgument("--no-sandbox");
                     // options.AddArgument("--headless=new"); // entfernt, damit GUI sichtbar bleibt
 
-                    _driver = new ChromeDriver(options);
-                    Log.Information("ChromeDriver mit eigenem User-Profil gestartet. UserDir: {UserDir}", userDir);
+
+                    try
+                    {
+                        _driver = new ChromeDriver(options);
+                        Log.Information("ChromeDriver mit eigenem User-Profil gestartet. UserDir: {UserDir}", userDir);
+                    }
+                    catch (WebDriverException ex)
+                    {
+                        Log.Warning("Standard-ChromeDriver fehlgeschlagen: {Message}", ex.Message);
+                        Log.Information("Versuche lokalen chromedriver.exe aus 'chromedriverlocal' zu verwenden...");
+
+                        string driverPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "chromedriverlocal");
+                        string exePath = Path.Combine(driverPath, "chromedriver.exe");
+
+                        if (!File.Exists(exePath))
+                        {
+                            Log.Error("Lokaler chromedriver.exe nicht gefunden! Erwartet unter: {Path}", exePath);
+                            throw new FileNotFoundException("Lokaler chromedriver.exe nicht gefunden.", exePath);
+                        }
+
+                        var service = ChromeDriverService.CreateDefaultService(driverPath, "chromedriver.exe");
+                        _driver = new ChromeDriver(service, options);
+                        Log.Information("Lokaler ChromeDriver verwendet. Pfad: {DriverPath}", driverPath);
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -62,6 +80,7 @@ namespace VkAudioRecorderCLI
                 }
             }
         }
+
 
         /// <summary>
         /// Navigiert den Browser zur angegebenen URL.
